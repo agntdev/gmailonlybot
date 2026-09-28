@@ -12,7 +12,12 @@ composer.command("submit_url", async (ctx) => {
     session.awaitingUrl = true;
     session.awaitingUpload = false;
     session.inputMode = "full_build";
-    await ctx.reply(PROMPT, { reply_markup: inlineKeyboard([[inlineButton("Back to menu", "menu:main")]]) });
+    await ctx.reply(PROMPT, {
+      reply_markup: inlineKeyboard([
+        [inlineButton("Edit only — return code (no build)", "edit_only:open")],
+        [inlineButton("Back to menu", "menu:main")],
+      ]),
+    });
     return;
   }
   await acceptUrl(ctx, input);
@@ -64,4 +69,21 @@ async function acceptUrl(ctx: Ctx, input: string): Promise<void> {
     }
   }
 }
+
+// The full-build URL flow remains available after an edit-only selection.
+// This callback is intentionally local to the URL feature so the two typed
+// input paths cannot leave each other with stale session state.
+composer.callbackQuery("url:full_build", async (ctx) => {
+  await ctx.answerCallbackQuery();
+  const session = workflowSession(ctx);
+  session.awaitingUrl = true;
+  session.awaitingUpload = false;
+  session.inputMode = "full_build";
+  await ctx.editMessageText(PROMPT, {
+    reply_markup: inlineKeyboard([
+      [inlineButton("Edit only — return code (no build)", "edit_only:open")],
+      [inlineButton("Back to menu", "menu:main")],
+    ]),
+  });
+});
 export default composer;

@@ -12,7 +12,29 @@ composer.callbackQuery("repo:upload_zip", async (ctx) => {
   session.awaitingUpload = true;
   session.awaitingUrl = false;
   session.inputMode = "full_build";
-  await ctx.editMessageText("Upload a .zip repository file to begin.", { reply_markup: inlineKeyboard([[inlineButton("Back to menu", "menu:main")]]) });
+  await ctx.editMessageText("Upload a .zip repository file to begin.", {
+    reply_markup: inlineKeyboard([
+      [inlineButton("Edit only — return code (no build)", "edit_only:open")],
+      [inlineButton("Back to menu", "menu:main")],
+    ]),
+  });
+});
+
+// A user who selected edit-only can explicitly switch back before sending the
+// repository. This keeps the mode choice reversible and avoids accidental
+// omission of the requested build workflow.
+composer.callbackQuery("repo:full_build", async (ctx) => {
+  await ctx.answerCallbackQuery();
+  const session = workflowSession(ctx);
+  session.awaitingUpload = true;
+  session.awaitingUrl = false;
+  session.inputMode = "full_build";
+  await ctx.editMessageText("Upload a .zip repository file to begin.", {
+    reply_markup: inlineKeyboard([
+      [inlineButton("Edit only — return code (no build)", "edit_only:open")],
+      [inlineButton("Back to menu", "menu:main")],
+    ]),
+  });
 });
 
 composer.on("message:document", async (ctx, next) => {

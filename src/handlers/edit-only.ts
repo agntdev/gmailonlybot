@@ -7,6 +7,23 @@ registerMainMenuItem({ label: "Edit only (send code, no build)", data: "edit_onl
 const composer = new Composer<Ctx>();
 const PROMPT = "Send a public GitHub HTTPS URL or upload a .zip repository. Edit-only mode returns modified source code and a change report; no build artifacts or further build steps are produced.";
 
+function editOnlyKeyboard() {
+  return inlineKeyboard([
+    [inlineButton("Full processing", "edit_only:full_build")],
+    [inlineButton("Back to menu", "menu:main")],
+  ]);
+}
+
+function isNoBuildRequest(text: string): boolean {
+  const normalized = text.trim().toLocaleLowerCase();
+  return normalized.includes("tôi không yêu cầu build")
+    || normalized.includes("toi khong yeu cau build")
+    || normalized.includes("no build")
+    || normalized.includes("without build")
+    || normalized.includes("edit only")
+    || normalized.includes("edit-only");
+}
+
 composer.command("edit_only", async (ctx) => {
   const input = ctx.match.trim();
   if (!input) {
@@ -14,7 +31,7 @@ composer.command("edit_only", async (ctx) => {
     session.awaitingUrl = true;
     session.awaitingUpload = true;
     session.inputMode = "edit_only";
-    await ctx.reply(PROMPT, { reply_markup: inlineKeyboard([[inlineButton("Back to menu", "menu:main")]]) });
+    await ctx.reply(PROMPT, { reply_markup: editOnlyKeyboard() });
     return;
   }
   await acceptUrl(ctx, input);
@@ -26,15 +43,36 @@ composer.callbackQuery("edit_only:open", async (ctx) => {
   session.awaitingUpload = true;
   session.awaitingUrl = true;
   session.inputMode = "edit_only";
-  await ctx.editMessageText(PROMPT, { reply_markup: inlineKeyboard([[inlineButton("Back to menu", "menu:main")]]) });
+  await ctx.editMessageText(PROMPT, { reply_markup: editOnlyKeyboard() });
 });
 
 composer.on("message:text", async (ctx, next) => {
   const session = workflowSession(ctx);
+  if (isNoBuildRequest(ctx.message.text) && session.inputMode !== "edit_only") {
+    session.awaitingUrl = true;
+    session.awaitingUpload = true;
+    session.inputMode = "edit_only";
+    await ctx.reply(PROMPT, { reply_markup: editOnlyKeyboard() });
+    return;
+  }
   if (!session.awaitingUrl || session.inputMode !== "edit_only") return next();
   session.awaitingUrl = false;
   session.inputMode = undefined;
   await acceptUrl(ctx, ctx.message.text.trim());
+});
+
+composer.callbackQuery("edit_only:full_build", async (ctx) => {
+  await ctx.answerCallbackQuery();
+  const session = workflowSession(ctx);
+  session.awaitingUrl = true;
+  session.awaitingUpload = true;
+  session.inputMode = "full_build";
+  await ctx.editMessageText("Choose an input: send a public GitHub HTTPS URL or upload a .zip repository.", {
+    reply_markup: inlineKeyboard([
+      [inlineButton("Upload ZIP", "repo:full_build")],
+      [inlineButton("Back to menu", "menu:main")],
+    ]),
+  });
 });
 
 composer.on("message:document", async (ctx, next) => {
@@ -105,7 +143,9 @@ async function deliver(ctx: Ctx, job: Job, name: string, input: Uint8Array): Pro
   job.flags = transformed.scan.flags;
   job.summary = transformed.scan.flags.length ? "Wolt dependencies need manual review." : "Modified source returned; no build steps were run.";
   await ctx.replyWithDocument(new InputFile(transformed.packageBytes, `${name}-edited.zip`));
-  await ctx.reply(trimForTelegram(`Edit-only result: modified source code and a change report. No build artifacts or further build steps were produced.\n\n${transformed.scan.report}`));
+  await ctx.reply(trimForTelegram(`Edit-only result: modified source code and a change report. No build artifacts or further build steps were produced.\n\n${transformed.scan.report}`), {
+    reply_markup: editOnlyKeyboard(),
+  });
 }
 
 export default composer;
