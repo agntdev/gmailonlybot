@@ -5,9 +5,9 @@
       {
         "expect": [
           {
-            "method": "sendMessage",
+            "method": "editMessageText",
             "payload": {
-              "text": "Upload a repository archive (.zip) for processing"
+              "text": "Upload a .zip repository file to begin."
             }
           }
         ],

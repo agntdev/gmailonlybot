@@ -5,9 +5,9 @@
       {
         "expect": [
           {
-            "method": "sendMessage",
+            "method": "editMessageText",
             "payload": {
-              "text": "Show recent jobs and their status (within retention window)"
+              "text": "No recent jobs yet — tap Upload ZIP or submit a GitHub URL to begin."
             }
           }
         ],
