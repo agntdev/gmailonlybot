@@ -1,0 +1,20 @@
+[
+  {
+    "name": "Upload ZIP",
+    "steps": [
+      {
+        "expect": [
+          {
+            "method": "sendMessage",
+            "payload": {
+              "text": "Upload a repository archive (.zip) for processing"
+            }
+          }
+        ],
+        "send": {
+          "callback": "repo:upload_zip"
+        }
+      }
+    ]
+  }
+]
