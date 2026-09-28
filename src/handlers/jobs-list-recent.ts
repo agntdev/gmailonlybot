@@ -12,7 +12,7 @@ composer.callbackQuery("jobs:list_recent", async (ctx) => {
     await ctx.editMessageText("No recent jobs yet — tap Upload ZIP or submit a GitHub URL to begin.", { reply_markup: inlineKeyboard([[inlineButton("Back to menu", "menu:main")]]) });
     return;
   }
-  const lines = jobs.map((job) => `${job.id} · ${job.status}\n${job.name} — ${job.summary}`);
+  const lines = jobs.map((job) => `${job.id} · ${job.status} · ${job.mode === "edit_only" ? "edit only" : "full build"}\n${job.name} — ${job.summary}`);
   await ctx.editMessageText(`Recent jobs:\n\n${lines.join("\n\n")}`, { reply_markup: inlineKeyboard([[inlineButton("Back to menu", "menu:main")]]) });
 });
 export default composer;

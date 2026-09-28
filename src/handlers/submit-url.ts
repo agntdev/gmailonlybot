@@ -8,7 +8,10 @@ const PROMPT = "Send a public GitHub HTTPS URL to begin.";
 composer.command("submit_url", async (ctx) => {
   const input = ctx.match.trim();
   if (!input) {
-    workflowSession(ctx).awaitingUrl = true;
+    const session = workflowSession(ctx);
+    session.awaitingUrl = true;
+    session.awaitingUpload = false;
+    session.inputMode = "full_build";
     await ctx.reply(PROMPT, { reply_markup: inlineKeyboard([[inlineButton("Back to menu", "menu:main")]]) });
     return;
   }
@@ -17,6 +20,7 @@ composer.command("submit_url", async (ctx) => {
 composer.on("message:text", async (ctx, next) => {
   if (!workflowSession(ctx).awaitingUrl) return next();
   workflowSession(ctx).awaitingUrl = false;
+  workflowSession(ctx).inputMode = undefined;
   await acceptUrl(ctx, ctx.message.text.trim());
 });
 
@@ -27,7 +31,7 @@ async function acceptUrl(ctx: Ctx, input: string): Promise<void> {
     return;
   }
   await ctx.reply("Received — processing");
-  const job: Job = { id: nextJobId(ctx), source: "git_url", name: parsed.name, status: "queued", summary: "Public repository queued for static analysis.", flags: [], createdAt: now() };
+  const job: Job = { id: nextJobId(ctx), source: "git_url", mode: "full_build", name: parsed.name, status: "queued", summary: "Public repository queued for static analysis.", flags: [], createdAt: now() };
   rememberJob(ctx, job);
   try {
     const metadata = await fetch(`https://api.github.com/repos/${parsed.name}`, { headers: { accept: "application/vnd.github+json", "user-agent": "repo-sanitizer" } });
