@@ -7,7 +7,7 @@
           {
             "method": "sendMessage",
             "payload": {
-              "text": "Provide a public GitHub HTTPS URL (typed input) to clone and process"
+              "text": "Send a public GitHub HTTPS URL to begin."
             }
           }
         ],

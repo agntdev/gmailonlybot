@@ -5,9 +5,9 @@
       {
         "expect": [
           {
-            "method": "sendMessage",
+            "method": "editMessageText",
             "payload": {
-              "text": "Show short usage tips and privacy summary"
+              "text": "Send a GitHub HTTPS URL or upload a .zip repository. The bot removes Wolt-specific code, consolidates Gmail account-generation logic, and returns a ZIP with a change report. Temporary files are kept for 24 hours; audit summaries are kept for 30 days."
             }
           }
         ],
