@@ -1,0 +1,20 @@
+[
+  {
+    "name": "My recent jobs",
+    "steps": [
+      {
+        "expect": [
+          {
+            "method": "sendMessage",
+            "payload": {
+              "text": "Show recent jobs and their status (within retention window)"
+            }
+          }
+        ],
+        "send": {
+          "callback": "jobs:list_recent"
+        }
+      }
+    ]
+  }
+]
