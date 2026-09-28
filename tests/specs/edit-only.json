@@ -30,5 +30,21 @@
         ]
       }
     ]
+  },
+  {
+    "name": "Vietnamese no-build wording opens edit-only mode",
+    "steps": [
+      {
+        "send": { "text": "tôi không yêu cầu build" },
+        "expect": [
+          {
+            "method": "sendMessage",
+            "payload": {
+              "text": "Send a public GitHub HTTPS URL or upload a .zip repository. Edit-only mode returns modified source code and a change report; no build artifacts or further build steps are produced."
+            }
+          }
+        ]
+      }
+    ]
   }
 ]
