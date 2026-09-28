@@ -19,6 +19,8 @@ export interface WorkflowSession {
   inputMode?: "full_build" | "edit_only";
   maxRepoBytes?: number;
   returnOriginalSnippets?: boolean;
+  gmailMode?: "choose" | "live_warning";
+  gmailTasks?: Array<{ id: string; status: "queued"; createdAt: number; summary: string }>;
 }
 
 let testNow: (() => number) | undefined;
@@ -64,7 +66,7 @@ export interface ScanResult {
   report: string;
 }
 
-interface ArchiveFile { path: string; bytes: Uint8Array; }
+export interface ArchiveFile { path: string; bytes: Uint8Array; }
 
 function u16(bytes: Uint8Array, at: number): number { return bytes[at]! | (bytes[at + 1]! << 8); }
 function u32(bytes: Uint8Array, at: number): number { return (bytes[at]! | (bytes[at + 1]! << 8) | (bytes[at + 2]! << 16) | (bytes[at + 3]! << 24)) >>> 0; }
@@ -103,7 +105,7 @@ async function readZip(bytes: Uint8Array): Promise<ArchiveFile[]> {
     const local = u32(bytes, at + 42);
     const name = new TextDecoder().decode(bytes.slice(at + 46, at + 46 + nameLength));
     at += 46 + nameLength + extraLength + commentLength;
-    if (!name || name.endsWith("/") || name.includes("..")) continue;
+    if (!name || name.endsWith("/") || name.includes("..") || name.startsWith("/") || name.includes("\\")) continue;
     if (files.length >= 10000 || compressedSize > 50 * 1024 * 1024) throw new Error("too_large");
     const localNameLength = u16(bytes, local + 26);
     const localExtraLength = u16(bytes, local + 28);
@@ -114,7 +116,7 @@ async function readZip(bytes: Uint8Array): Promise<ArchiveFile[]> {
   return files;
 }
 
-function writeZip(files: ReadonlyArray<ArchiveFile>): Uint8Array {
+export function writeZip(files: ReadonlyArray<ArchiveFile>): Uint8Array {
   const names = files.map((file) => new TextEncoder().encode(file.path));
   const localSize = files.reduce((sum, file, i) => sum + 30 + names[i]!.length + file.bytes.length, 0);
   const centralSize = files.reduce((sum, file, i) => sum + 46 + names[i]!.length, 0);
@@ -123,7 +125,7 @@ function writeZip(files: ReadonlyArray<ArchiveFile>): Uint8Array {
   const offsets: number[] = [];
   files.forEach((file, i) => {
     offsets.push(at); const name = names[i]!; const crc = crc32(file.bytes);
-    put32(out, at, 0x04034b50); put16(out, at + 4, 20); put16(out, at + 8, 0); put16(out, at + 10, 0); put16(out, at + 14, 0); put32(out, at + 18, crc); put32(out, at + 22, file.bytes.length); put32(out, at + 26, file.bytes.length); put16(out, at + 28, name.length); put16(out, at + 30, 0); out.set(name, at + 32); out.set(file.bytes, at + 32 + name.length); at += 32 + name.length + file.bytes.length;
+    put32(out, at, 0x04034b50); put16(out, at + 4, 20); put16(out, at + 8, 0); put16(out, at + 10, 0); put32(out, at + 14, crc); put32(out, at + 18, file.bytes.length); put32(out, at + 22, file.bytes.length); put16(out, at + 26, name.length); put16(out, at + 28, 0); out.set(name, at + 30); out.set(file.bytes, at + 30 + name.length); at += 30 + name.length + file.bytes.length;
   });
   const centralAt = at;
   files.forEach((file, i) => { const name = names[i]!; const crc = crc32(file.bytes); put32(out, at, 0x02014b50); put16(out, at + 4, 20); put16(out, at + 6, 20); put16(out, at + 8, 0); put16(out, at + 10, 0); put32(out, at + 16, crc); put32(out, at + 20, file.bytes.length); put32(out, at + 24, file.bytes.length); put16(out, at + 28, name.length); put16(out, at + 30, 0); put16(out, at + 32, 0); put16(out, at + 34, 0); put16(out, at + 36, 0); put32(out, at + 38, 0); put32(out, at + 42, offsets[i]!); out.set(name, at + 46); at += 46 + name.length; });
@@ -140,8 +142,7 @@ export async function transformZip(input: Uint8Array): Promise<{ packageBytes: U
     if (!binary.has(ext) && file.bytes.length <= 2 * 1024 * 1024) textFiles.push({ path: file.path, text: new TextDecoder().decode(file.bytes) });
   }
   const scan = scanTextFiles(textFiles);
-  const changed = new Set(scan.files.map((item) => item.slice(0, item.lastIndexOf(":"))));
-  const output = files.filter((file) => !changed.has(file.path)).map((file) => {
+  const output = files.map((file) => {
     const text = textFiles.find((candidate) => candidate.path === file.path);
     if (!text) return file;
     const lines = text.text.split("\n").filter((line) => !/wolt|wolt[_-]?api|wolt[_-]?client/i.test(line));
@@ -194,4 +195,75 @@ export function scanTextFiles(files: ReadonlyArray<{ path: string; text: string 
 
 export function trimForTelegram(value: string): string {
   return value.length <= 3800 ? value : `${value.slice(0, 3790)}\n[Report shortened for Telegram]`;
+}
+
+export interface MockGmailAccount {
+  email: string;
+  password: string;
+  creation_note: "mock/generated";
+}
+
+export interface MockGmailPackage {
+  packageBytes: Uint8Array;
+  report: string;
+  accounts: MockGmailAccount[];
+  expiresAt: number;
+  auditExpiresAt: number;
+}
+
+const PASSWORD_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%^&*";
+
+function randomBytes(length: number): Uint8Array {
+  const bytes = new Uint8Array(length);
+  if (globalThis.crypto?.getRandomValues) {
+    globalThis.crypto.getRandomValues(bytes);
+    return bytes;
+  }
+  throw new Error("secure_random_unavailable");
+}
+
+function csvCell(value: string): string {
+  return `"${value.replaceAll('"', '""')}"`;
+}
+
+/** Create safe placeholder credentials. This function never contacts Google. */
+export function generateMockGmailPackage(clock: () => number = now): MockGmailPackage {
+  const accounts: MockGmailAccount[] = [];
+  const used = new Set<string>();
+  while (accounts.length < 10) {
+    const suffix = Array.from(randomBytes(6), (byte) => (byte % 36).toString(36)).join("");
+    const email = `testuser-${suffix}@gmail.com`;
+    if (used.has(email)) continue;
+    used.add(email);
+    const bytes = randomBytes(18);
+    let password = Array.from(bytes, (byte) => PASSWORD_ALPHABET[byte % PASSWORD_ALPHABET.length]).join("");
+    password = `A${password}z9!`;
+    accounts.push({ email, password, creation_note: "mock/generated" });
+  }
+  const json = JSON.stringify({ mode: "mock", accounts }, null, 2) + "\n";
+  const csv = [
+    "email,password,creation_note",
+    ...accounts.map((account) => [account.email, account.password, account.creation_note].map(csvCell).join(",")),
+    "",
+  ].join("\n");
+  const generatedAt = clock();
+  const expiresAt = generatedAt + 24 * 60 * 60 * 1000;
+  const auditExpiresAt = generatedAt + 30 * 24 * 60 * 60 * 1000;
+  const report = [
+    "Gmail mock account report",
+    "Mode: Mock (safe placeholder accounts)",
+    "Ten synthetic Gmail-style accounts were generated locally. No Google or account-creation service was contacted.",
+    "The ZIP is temporary and expires after 24 hours. The audit summary is retained for 30 days.",
+  ].join("\n");
+  return {
+    packageBytes: writeZip([
+      { path: "gmail_mock_accounts.csv", bytes: new TextEncoder().encode(csv) },
+      { path: "gmail_mock_accounts.json", bytes: new TextEncoder().encode(json) },
+      { path: "CHANGE_REPORT.txt", bytes: new TextEncoder().encode(report + "\n") },
+    ]),
+    report,
+    accounts,
+    expiresAt,
+    auditExpiresAt,
+  };
 }

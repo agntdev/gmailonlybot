@@ -7,12 +7,15 @@ registerMainMenuItem({ label: "My recent jobs", data: "jobs:list_recent", order:
 const composer = new Composer<Ctx>();
 composer.callbackQuery("jobs:list_recent", async (ctx) => {
   await ctx.answerCallbackQuery();
-  const jobs = (workflowSession(ctx).jobs ?? []).filter((job) => now() - job.createdAt < 30 * 24 * 60 * 60 * 1000);
-  if (!jobs.length) {
+  const session = workflowSession(ctx);
+  const jobs = (session.jobs ?? []).filter((job) => now() - job.createdAt < 30 * 24 * 60 * 60 * 1000);
+  const gmailTasks = (session.gmailTasks ?? []).filter((task) => now() - task.createdAt < 30 * 24 * 60 * 60 * 1000);
+  if (!jobs.length && !gmailTasks.length) {
     await ctx.editMessageText("No recent jobs yet — tap Upload ZIP or submit a GitHub URL to begin.", { reply_markup: inlineKeyboard([[inlineButton("Back to menu", "menu:main")]]) });
     return;
   }
   const lines = jobs.map((job) => `${job.id} · ${job.status} · ${job.mode === "edit_only" ? "edit only" : "full build"}\n${job.name} — ${job.summary}`);
+  lines.push(...gmailTasks.map((task) => `${task.id} · ${task.status}\n${task.summary}`));
   await ctx.editMessageText(`Recent jobs:\n\n${lines.join("\n\n")}`, { reply_markup: inlineKeyboard([[inlineButton("Back to menu", "menu:main")]]) });
 });
 export default composer;

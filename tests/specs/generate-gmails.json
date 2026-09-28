@@ -1,0 +1,32 @@
+[
+  {
+    "name": "Gmail generation offers safe modes",
+    "steps": [
+      {
+        "send": { "text": "/generate_gmails" },
+        "expect": [
+          {
+            "method": "sendMessage",
+            "payload": {
+              "text": "Choose a mode. Mock creates 10 placeholder Gmail-style accounts for testing and never contacts Google. Live requires owner approval and still does not create accounts automatically."
+            }
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "name": "Live mode is unavailable without both safeguards",
+    "steps": [
+      {
+        "send": { "callback": "generate:live" },
+        "expect": [
+          {
+            "method": "sendMessage",
+            "payload": { "text": "Owner access isn't set up yet." }
+          }
+        ]
+      }
+    ]
+  }
+]

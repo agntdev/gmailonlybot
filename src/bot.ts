@@ -11,6 +11,8 @@ export interface Session {
   inputMode?: "full_build" | "edit_only";
   maxRepoBytes?: number;
   returnOriginalSnippets?: boolean;
+  gmailMode?: "choose" | "live_warning";
+  gmailTasks?: Array<{ id: string; status: "queued"; createdAt: number; summary: string }>;
 }
 
 export type Ctx = BotContext<Session>;
