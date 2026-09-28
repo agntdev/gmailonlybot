@@ -1,6 +1,7 @@
 import { Composer } from "grammy";
 import type { Ctx } from "../bot.js";
 import { mainMenuKeyboard } from "../toolkit/index.js";
+import { workflowSession } from "../workflow.js";
 
 // The /start handler renders the bot's MAIN MENU — the primary way users operate
 // a button-first bot. A feature adds its own button by calling
@@ -12,12 +13,20 @@ const composer = new Composer<Ctx>();
 const WELCOME = "👋 Welcome! Tap a button below to get started.";
 
 composer.command("start", async (ctx) => {
+  const session = workflowSession(ctx);
+  session.awaitingUpload = false;
+  session.awaitingUrl = false;
+  session.inputMode = undefined;
   await ctx.reply(WELCOME, { reply_markup: mainMenuKeyboard() });
 });
 
 // "Back to menu" — re-render the main menu in place from any sub-view.
 composer.callbackQuery("menu:main", async (ctx) => {
   await ctx.answerCallbackQuery();
+  const session = workflowSession(ctx);
+  session.awaitingUpload = false;
+  session.awaitingUrl = false;
+  session.inputMode = undefined;
   await ctx.editMessageText(WELCOME, { reply_markup: mainMenuKeyboard() });
 });
 

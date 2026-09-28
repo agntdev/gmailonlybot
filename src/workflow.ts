@@ -4,6 +4,7 @@ export type JobStatus = "queued" | "running" | "complete" | "failed" | "manual_r
 export interface Job {
   id: string;
   source: "git_url" | "upload";
+  mode: "full_build" | "edit_only";
   name: string;
   status: JobStatus;
   summary: string;
@@ -15,6 +16,7 @@ export interface WorkflowSession {
   jobs?: Job[];
   awaitingUpload?: boolean;
   awaitingUrl?: boolean;
+  inputMode?: "full_build" | "edit_only";
   maxRepoBytes?: number;
   returnOriginalSnippets?: boolean;
 }
@@ -129,6 +131,7 @@ function writeZip(files: ReadonlyArray<ArchiveFile>): Uint8Array {
 }
 
 export async function transformZip(input: Uint8Array): Promise<{ packageBytes: Uint8Array; scan: ScanResult }> {
+  if (input.length > 50 * 1024 * 1024) throw new Error("too_large");
   const files = await readZip(input);
   const textFiles: Array<{ path: string; text: string }> = [];
   const binary = new Set([".png", ".jpg", ".jpeg", ".gif", ".webp", ".ico", ".pdf", ".woff", ".woff2", ".zip", ".exe"]);
@@ -141,11 +144,11 @@ export async function transformZip(input: Uint8Array): Promise<{ packageBytes: U
   const output = files.filter((file) => !changed.has(file.path)).map((file) => {
     const text = textFiles.find((candidate) => candidate.path === file.path);
     if (!text) return file;
-    const lines = text.text.split("\\n").filter((line) => !/wolt|wolt[_-]?api|wolt[_-]?client/i.test(line));
-    return { path: file.path, bytes: new TextEncoder().encode(lines.join("\\n")) };
+    const lines = text.text.split("\n").filter((line) => !/wolt|wolt[_-]?api|wolt[_-]?client/i.test(line));
+    return { path: file.path, bytes: new TextEncoder().encode(lines.join("\n")) };
   });
-  const gmail = textFiles.flatMap((file) => file.text.split("\\n").filter((line) => /gmail|create[_-]?gmail|gmail[_-]?account|oauth|smtp/i.test(line)).map((line) => `// ${file.path}\n${line}`));
-  if (gmail.length) output.push({ path: "src/gmail_autogen/index.ts", bytes: new TextEncoder().encode(["// Consolidated by Repo Sanitizer. Review before use.", ...gmail].join("\\n")) });
+  const gmail = textFiles.flatMap((file) => file.text.split("\n").filter((line) => /gmail|create[_-]?gmail|gmail[_-]?account|oauth|smtp/i.test(line)).map((line) => `// ${file.path}\n${line}`));
+  if (gmail.length) output.push({ path: "src/gmail_autogen/index.ts", bytes: new TextEncoder().encode(["// Consolidated by Repo Sanitizer. Review before use.", ...gmail].join("\n")) });
   return { packageBytes: writeZip(output), scan };
 }
 
@@ -157,14 +160,16 @@ export function scanTextFiles(files: ReadonlyArray<{ path: string; text: string 
   let removedLines = 0;
   let gmailLines = 0;
   for (const file of files) {
-    const lines = file.text.split("\\n");
+    const lines = file.text.split("\n");
     const kept: string[] = [];
     lines.forEach((line, index) => {
       const lower = line.toLowerCase();
       if (/wolt|wolt[_-]?api|wolt[_-]?client/.test(lower)) {
         removedLines += 1;
         removed.push(`${file.path}:${index + 1}`);
-        if (/[=:({].*(wolt|client)|import .*wolt/.test(lower)) flags.push(`${file.path}:${index + 1}`);
+        if (/[=:({].*(wolt|client)|import .*wolt/.test(lower)) {
+          flags.push(`${file.path}:${index + 1}\nOriginal: ${line.trim() || "(empty line)"}\nModified: (line removed)`);
+        }
         return;
       }
       if (/gmail|create[_-]?gmail|gmail[_-]?account|oauth|smtp/.test(lower)) {
@@ -182,11 +187,11 @@ export function scanTextFiles(files: ReadonlyArray<{ path: string; text: string 
     flags.length
       ? `MANUAL REVIEW REQUIRED\nAmbiguous snippets:\n${flags.map((x) => `- ${x}`).join("\n")}\nOriginal and modified snippets must be reviewed before deployment.`
       : "Manual review: not required",
-    gmailLines ? "Generated module: src/gmail_autogen/index.ts" : "No Gmail-related logic found; source was otherwise left unchanged.",
+    gmailLines ? "Generated module: src/gmail_autogen/index.ts" : files.length ? "No Gmail-related logic found; source was otherwise left unchanged." : "No analyzable source code found.",
   ].join("\n");
   return { files: removed, removedLines, gmailLines, flags, report };
 }
 
 export function trimForTelegram(value: string): string {
-  return value.length <= 3800 ? value : `${value.slice(0, 3790)}\\n[Report shortened for Telegram]`;
+  return value.length <= 3800 ? value : `${value.slice(0, 3790)}\n[Report shortened for Telegram]`;
 }

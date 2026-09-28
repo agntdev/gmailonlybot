@@ -8,7 +8,10 @@ const composer = new Composer<Ctx>();
 
 composer.callbackQuery("repo:upload_zip", async (ctx) => {
   await ctx.answerCallbackQuery();
-  workflowSession(ctx).awaitingUpload = true;
+  const session = workflowSession(ctx);
+  session.awaitingUpload = true;
+  session.awaitingUrl = false;
+  session.inputMode = "full_build";
   await ctx.editMessageText("Upload a .zip repository file to begin.", { reply_markup: inlineKeyboard([[inlineButton("Back to menu", "menu:main")]]) });
 });
 
@@ -27,7 +30,7 @@ composer.on("message:document", async (ctx, next) => {
     return;
   }
   await ctx.reply("Received — processing");
-  const job: Job = { id: nextJobId(ctx), source: "upload", name: document.file_name, status: "running", summary: "Static analysis is running.", flags: [], createdAt: now() };
+  const job: Job = { id: nextJobId(ctx), source: "upload", mode: "full_build", name: document.file_name, status: "running", summary: "Static analysis is running.", flags: [], createdAt: now() };
   rememberJob(ctx, job);
   try {
     const remote = await ctx.api.getFile(document.file_id);

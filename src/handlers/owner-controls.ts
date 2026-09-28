@@ -21,7 +21,7 @@ composer.callbackQuery("admin:audit", async (ctx) => {
   await ctx.answerCallbackQuery();
   if (!(await requireOwner(ownerContext(ctx)))) return;
   const jobs = workflowSession(ctx).jobs ?? [];
-  await ctx.reply(jobs.length ? jobs.map((job) => `${job.id}: ${job.status} — ${job.summary}`).join("\n") : "No audit entries are available.");
+  await ctx.reply(jobs.length ? jobs.map((job) => `${job.id}: ${job.status} · ${job.mode === "edit_only" ? "edit only" : "full build"} — ${job.summary}`).join("\n") : "No audit entries are available.");
 });
 
 composer.callbackQuery(/^admin:cancel:(.+)$/, async (ctx) => {

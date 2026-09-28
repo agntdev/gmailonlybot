@@ -1,0 +1,34 @@
+[
+  {
+    "name": "Edit-only mode explains its output",
+    "steps": [
+      {
+        "send": { "text": "/edit_only" },
+        "expect": [
+          {
+            "method": "sendMessage",
+            "payload": {
+              "text": "Send a public GitHub HTTPS URL or upload a .zip repository. Edit-only mode returns modified source code and a change report; no build artifacts or further build steps are produced."
+            }
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "name": "Edit-only menu button opens the same input flow",
+    "steps": [
+      {
+        "send": { "callback": "edit_only:open" },
+        "expect": [
+          {
+            "method": "editMessageText",
+            "payload": {
+              "text": "Send a public GitHub HTTPS URL or upload a .zip repository. Edit-only mode returns modified source code and a change report; no build artifacts or further build steps are produced."
+            }
+          }
+        ]
+      }
+    ]
+  }
+]
