@@ -1,0 +1,20 @@
+[
+  {
+    "name": "/submit_url",
+    "steps": [
+      {
+        "expect": [
+          {
+            "method": "sendMessage",
+            "payload": {
+              "text": "Provide a public GitHub HTTPS URL (typed input) to clone and process"
+            }
+          }
+        ],
+        "send": {
+          "text": "/submit_url"
+        }
+      }
+    ]
+  }
+]
